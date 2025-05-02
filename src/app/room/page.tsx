@@ -12,8 +12,10 @@ import {
 import { BASE_URL } from "@/const";
 import { ListRoomsResponse } from "@/types/ListRoomsResponse";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { CreateRoomForm } from "./create-room-form";
 
+import JsonView from '@uiw/react-json-view';
 
 const listRooms = async (): Promise<ListRoomsResponse> => {
   const response = await fetch(`${BASE_URL}/rooms`);
@@ -21,9 +23,6 @@ const listRooms = async (): Promise<ListRoomsResponse> => {
   const data: ListRoomsResponse = await response.json();
   return data;
 };
-
-
-
 
 const Page = () => {
   const queryClient = useQueryClient();
@@ -57,6 +56,8 @@ const Page = () => {
     },
   })
 
+  // Helper function to format JSON data
+
 
   return (
     <main>
@@ -75,10 +76,22 @@ const Page = () => {
         <TableBody>
           {room?.rooms.map((room) => (
             <TableRow key={room.room_id}>
-              <TableCell>{room.room_id}</TableCell>
-              <TableCell>{JSON.stringify(room.client_presences)}</TableCell>
-              <TableCell>{room.client_ids}</TableCell>
-              <TableCell>{JSON.stringify(room.storage)}</TableCell>
+              <TableCell>
+                <Link passHref href={`/room/${room.room_id}`}>
+                  <Button>
+                    {room.room_id}
+                  </Button>
+                </Link>
+              </TableCell>
+              <TableCell>
+                <JsonView value={room.client_presences} />
+              </TableCell>
+              <TableCell>
+                <JsonView value={room.client_ids} />
+              </TableCell>
+              <TableCell>
+                <JsonView value={room.storage} />
+              </TableCell>
               <TableCell>{room.subscriber_count}</TableCell>
               <TableCell><Button onClick={() => {
                 deleteRoom.mutate(room.room_id);

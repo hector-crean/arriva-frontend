@@ -1,82 +1,66 @@
 "use client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StorageDocumentResponse } from '@/types/StorageDocumentResponse';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
+import { PresentationEditor } from './presentation-editor';
+import { PresentationViewer } from './shared-presentation';
 
 
-import { BASE_URL } from "@/const";
-import { GetRoomResponse } from "@/types/GetRoomResponse";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+export default function PresentationPage() {
+    const { room_id } = useParams<{ room_id: string }>();
 
-
-
-const getRoom = async (room_id: string): Promise<GetRoomResponse> => {
-    const response = await fetch(`${BASE_URL}/rooms/${room_id}`);
-
-    if (!response.ok) {
-        throw new Error(`Failed to fetch room: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data;
-};
-
-
-
-type Params = {
-    room_id: string;
-}
-
-const Page = () => {
-
-    const { room_id } = useParams<Params>();
-
-    const {
-        data: roomPayload,
-        isLoading,
-        isError,
-        error
-    } = useQuery({
-        queryKey: ['room', room_id],
-        queryFn: () => getRoom(room_id),
-        retry: 1,
-        refetchOnWindowFocus: false,
+    const { data, isLoading, error } = useQuery<StorageDocumentResponse>({
+        queryKey: ['room', room_id, 'storage'],
+        queryFn: async () => {
+            const response = await fetch(`http://127.0.0.1:9999/api/rooms/${room_id}/storage`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            console.log(response);
+            if (!response.ok) throw new Error('Failed to fetch presentation');
+            return response.json();
+        },
+        enabled: !!room_id,
+        // error: (err) => {
+        //     toast.error('Failed to load presentation');
+        //     console.error(err);
+        // }
     });
 
+
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center min-h-screen">
-                <p className="text-lg">Loading room information...</p>
-            </div>
-        );
+        return <div className="flex justify-center items-center h-screen">Loading presentation...</div>;
     }
 
-    if (isError) {
-        return (
-            <div className="flex flex-col justify-center items-center min-h-screen">
-                <h1 className="text-2xl text-red-600 mb-4">Error Loading Room</h1>
-                <p className="text-gray-700">{error instanceof Error ? error.message : "An unknown error occurred"}</p>
-                <button
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    onClick={() => window.location.reload()}
-                >
-                    Try Again
-                </button>
-            </div>
-        );
+    if (error || !data?.data) {
+        return <div className="flex justify-center items-center h-screen">Presentation not found</div>;
     }
 
     return (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Room {room_id}</h1>
-            {roomPayload ? (
-                <div className="bg-white p-4 rounded shadow">
-                    <p>{JSON.stringify(roomPayload)}</p>
-                    {/* Add more room details as needed */}
-                </div>
-            ) : (
-                <p className="text-yellow-600">Room information not available</p>
-            )}
+        <div className="container mx-auto py-8">
+            <Tabs defaultValue="view">
+                <TabsList className="mb-8 w-full max-w-md mx-auto">
+                    <TabsTrigger value="view" className="flex-1">View Presentation</TabsTrigger>
+                    <TabsTrigger value="edit" className="flex-1">Edit Presentation</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="view">
+                    <PresentationViewer
+                        roomId={room_id as string}
+                        initialPresentation={data.data}
+                    />
+                </TabsContent>
+
+                <TabsContent value="edit">
+                    <PresentationEditor
+                        roomId={room_id as string}
+                        presentation={data.data}
+                    />
+                </TabsContent>
+            </Tabs>
         </div>
     );
-};
-
-export default Page;
+}

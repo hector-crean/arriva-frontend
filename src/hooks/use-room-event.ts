@@ -1,45 +1,46 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ClientMessageType } from '@/types/ClientMessageType';
 import { ServerMessageType } from '@/types/ServerMessageType';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import useWebSocket from 'react-use-websocket';
+
 interface RoomOptions {
   roomId: string;
   onError?: (error: Error) => void;
+  onMessage?: (message: ServerMessageType) => void;
+  heartbeatInterval?: number; // in milliseconds
+  heartbeatTimeout?: number; // in milliseconds
 }
 
-export function useRoomEvent({ roomId, onError }: RoomOptions) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+export function useRoomEvent({ 
+  roomId, 
+  onError, 
+  onMessage,
+  heartbeatInterval = 30000, // 30 seconds default
+  heartbeatTimeout = 60000,  // 60 seconds default
+}: RoomOptions) {
+
+  const WS_URL = `ws://localhost:9999/ws/room/${roomId}`;
+
   const queryClient = useQueryClient();
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
-    }
+  const { sendJsonMessage: sendMessage, lastJsonMessage: message, readyState } = useWebSocket<ServerMessageType>(
+    WS_URL,
+    {
+      share: false,
+      shouldReconnect: () => true,
+    },
+  )
 
-    const ws = new WebSocket(`ws://localhost:9999/ws/room/${roomId}`);
-    wsRef.current = ws;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-    };
+  useEffect(() => {
+    if (message) {
+      onMessage?.(message);
 
-    ws.onclose = () => {
-      setIsConnected(false);
-    };
-
-    ws.onerror = (event) => {
-      const error = new Error('WebSocket error');
-      setError(error);
-      onError?.(error);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as ServerMessageType;
-        
+      console.log(message);
+      
+      
+      // Check if lastMessage has a type property before using it in the switch
+      if (message.type) {
         // Handle different message types
         switch (message.type) {
           case 'StorageUpdated':
@@ -52,40 +53,16 @@ export function useRoomEvent({ roomId, onError }: RoomOptions) {
             break;
           // Add other message type handlers as needed
         }
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
       }
-    };
-  }, [roomId, onError, queryClient]);
-
-  const sendMessage = useCallback((message: ClientMessageType) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
-    } else {
-      throw new Error('WebSocket is not connected');
     }
-  }, []);
+  }, [message, onMessage]);
 
-  const joinRoom = useCallback(() => {
-    sendMessage({ type: 'JoinRoom', data: { room_id: roomId } });
-  }, [roomId, sendMessage]);
 
-  const leaveRoom = useCallback(() => {
-    sendMessage({ type: 'LeaveRoom' });
-  }, [sendMessage]);
 
-  useEffect(() => {
-    connect();
-    return () => {
-      wsRef.current?.close();
-    };
-  }, [connect]);
 
   return {
-    isConnected,
-    error,
+    readyState,
     sendMessage,
-    joinRoom,
-    leaveRoom,
+    message,
   };
-} 
+}
