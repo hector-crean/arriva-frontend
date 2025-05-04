@@ -1,4 +1,5 @@
 // src/realtime/room.ts
+import { ServerMessageType } from '@/types/ServerMessageType';
 import { Client, JsonObject, User } from './client';
 
 export type Status = 'initial' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
@@ -6,7 +7,9 @@ export type StorageStatus = 'loading' | 'synchronizing' | 'synchronized';
 
 export class Room<
   TPresence extends JsonObject,
+  TPresenceOperation,
   TStorage extends JsonObject,
+  TStorageOperation,
   TUserMeta = any,
   TRoomEvent = any
 > {
@@ -101,8 +104,8 @@ export class Room<
   }
 
   // Presence management
-  public updatePresence(patch: Partial<TPresence>, options?: { addToHistory: boolean }) {
-    this.presence = { ...this.presence, ...patch };
+  public updatePresence(operation: TPresenceOperation, options?: { addToHistory: boolean }) {
+    // this.presence = { ...this.presence, ...patch };
     
     if (this.self) {
       this.self.presence = this.presence;
@@ -113,10 +116,14 @@ export class Room<
     
     // Send update to server if connected
     if (this.status === 'connected' && this.socket) {
+
+      
       this.socket.send(JSON.stringify({
-        type: 'presence',
-        data: patch,
-        addToHistory: options?.addToHistory || false,
+        type: 'UpdatedPresence',
+        data: {
+          presence: operation,
+        },
+        // addToHistory: options?.addToHistory || false,
       }));
     }
   }

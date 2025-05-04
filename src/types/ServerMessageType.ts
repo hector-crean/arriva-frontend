@@ -2,4 +2,25 @@
 import type { CursorUpdate } from "./CursorUpdate";
 import type { PresentationOperation } from "./PresentationOperation";
 
-export type ServerMessageType = { "type": "RoomCreated", "data": { room_id: string, } } | { "type": "RoomDeleted", "data": { room_id: string, } } | { "type": "RoomJoined", "data": { room_id: string, client_id: string, } } | { "type": "RoomLeft", "data": { room_id: string, client_id: string, } } | { "type": "StorageUpdated", "data": { version: bigint, operations: Array<PresentationOperation>, } } | { "type": "PresenceUpdated", "data": { client_id: string, timestamp: string, presence: CursorUpdate, } } | { "type": "CommentCreated" } | { "type": "CommentEdited" } | { "type": "CommentDeleted" } | { "type": "CommentReactionAdded" } | { "type": "CommentReactionRemoved" } | { "type": "ThreadCreated" } | { "type": "ThreadDeleted" } | { "type": "ThreadMetadataUpdated" } | { "type": "Notification" };
+export type ServerMessageType =
+  | { type: "RoomCreated"; data: { room_id: string } }
+  | { type: "RoomDeleted"; data: { room_id: string } }
+  | { type: "RoomJoined"; data: { room_id: string; client_id: string } }
+  | { type: "RoomLeft"; data: { room_id: string; client_id: string } }
+  | {
+      type: "StorageUpdated";
+      data: { version: bigint; operations: Array<PresentationOperation> };
+    }
+  | {
+      type: "PresenceUpdated";
+      data: { client_id: string; timestamp: string; presence: CursorUpdate };
+    }
+  | { type: "CommentCreated" }
+  | { type: "CommentEdited" }
+  | { type: "CommentDeleted" }
+  | { type: "CommentReactionAdded" }
+  | { type: "CommentReactionRemoved" }
+  | { type: "ThreadCreated" }
+  | { type: "ThreadDeleted" }
+  | { type: "ThreadMetadataUpdated" }
+  | { type: "Notification" };

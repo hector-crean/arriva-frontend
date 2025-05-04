@@ -1,7 +1,10 @@
 // src/liveblocks.config.ts
 import { Client } from './client';
 import { createRoomContext } from './context';
-
+import { CursorPresence } from '@/types/CursorPresence';
+import { SharedPresentation } from '@/types/SharedPresentation';
+import { ServerMessageType } from '@/types/ServerMessageType';
+import { CursorUpdate } from '@/types/CursorUpdate';
 const client = new Client({
   apiEndpoint: 'http://localhost:9999/api',
   wsEndpoint: 'ws://localhost:9999/ws/room',
@@ -9,20 +12,13 @@ const client = new Client({
 });
 
 // Define your types
-type Presence = {
-  cursor: { x: number; y: number } | null;
-  // Add other presence properties
-};
+type Presence = CursorPresence;
 
-type Storage = {
-  documents: {
-    [id: string]: {
-      title: string;
-      content: string;
-    }
-  };
-  // Add other storage properties
-};
+type PresenceOperation = CursorUpdate;
+
+type Storage = SharedPresentation;
+
+type StorageOperation = unknown;
 
 type UserMeta = {
   id: string;
@@ -30,10 +26,7 @@ type UserMeta = {
   avatar: string;
 };
 
-type RoomEvent = {
-  type: string;
-  data: any;
-};
+type RoomEvent = ServerMessageType;
 
 // Create and export your hooks
 export const {
@@ -48,4 +41,7 @@ export const {
   useMutation,
   useBroadcastEvent,
   useEventListener,
-} = createRoomContext<Presence, Storage, UserMeta, RoomEvent>(client);
+} = createRoomContext<Presence, PresenceOperation, Storage, StorageOperation, UserMeta, RoomEvent>(client);
+
+
+export type { Presence, Storage, UserMeta, RoomEvent };

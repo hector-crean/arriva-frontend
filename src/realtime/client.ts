@@ -1,6 +1,8 @@
 // src/realtime/client.ts
 // import { WebSocket } from 'websocket';
 import { Room } from './room';
+import { ServerMessageType } from '@/types/ServerMessageType';
+
 
 export type JsonObject = Record<string, any>;
 export type User<TPresence extends JsonObject, TUserMeta = any> = {
@@ -18,22 +20,24 @@ export type ClientOptions = {
 export class Client {
   private options: ClientOptions;
   private socket: WebSocket | null = null;
-  private rooms: Map<string, Room<any, any>> = new Map();
+  private rooms: Map<string, Room<any, any, any, any, any, any>> = new Map();
   private eventListeners: Map<string, Set<(data: any) => void>> = new Map();
 
   constructor(options: ClientOptions) {
     this.options = options;
   }
 
-  public getRoom<TPresence extends JsonObject, TStorage extends JsonObject>(
+  public getRoom<TPresence extends JsonObject, TPresenceOperation, TStorage extends JsonObject, TStorageOperation, TUserMeta = any, TRoomEvent = any>(
     roomId: string
-  ): Room<TPresence, TStorage> | null {
-    return this.rooms.get(roomId) as Room<TPresence, TStorage> | null;
+  ): Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent> | null {
+    return this.rooms.get(roomId) as Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent> | null;
   }
 
   public enterRoom<
     TPresence extends JsonObject,
+    TPresenceOperation,
     TStorage extends JsonObject,
+    TStorageOperation,
     TUserMeta = any,
     TRoomEvent = any
   >(
@@ -42,12 +46,12 @@ export class Client {
       initialPresence: TPresence;
       initialStorage?: TStorage;
     }
-  ): { room: Room<TPresence, TStorage, TUserMeta, TRoomEvent>; leave: () => void } {
+  ): { room: Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>; leave: () => void } {
     // Create a new room or return existing one
-    let room = this.getRoom<TPresence, TStorage>(roomId);
+    let room = this.getRoom<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>(roomId);
     
     if (!room) {
-      room = new Room<TPresence, TStorage, TUserMeta, TRoomEvent>(
+      room = new Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>(
         this,
         roomId,
         options.initialPresence,
@@ -71,9 +75,8 @@ export class Client {
   public connectWebSocket(roomId: string): WebSocket {
     const socket = new WebSocket(`${this.options.wsEndpoint}/${roomId}`);
     
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data as string);
-      this.handleWebSocketMessage(roomId, data);
+    socket.onmessage = (event: MessageEvent<ServerMessageType>) => {
+      this.handleWebSocketMessage(roomId, event.data);
     };
 
     socket.onclose = () => {
@@ -87,22 +90,32 @@ export class Client {
     return socket;
   }
 
-  private handleWebSocketMessage(roomId: string, data: any) {
+  private handleWebSocketMessage(roomId: string, data: ServerMessageType) {
     const room = this.getRoom(roomId);
     if (!room) return;
 
-    // Handle different message types
     switch (data.type) {
-      case 'presence':
-        room.handlePresenceUpdate(data);
+      case 'RoomCreated':
+        // room.handleRoomCreated(data.data);
         break;
-      case 'storage':
-        room.handleStorageUpdate(data);
+      case 'RoomDeleted':
+        // room.handleRoomDeleted(data.data);
         break;
-      case 'event':
-        room.handleRoomEvent(data);
+      case 'RoomJoined':
+        // room.handleRoomJoined(data.data);
         break;
-      // Add other message types as needed
+      case 'RoomLeft':
+        // room.handleRoomLeft(data.data);
+        break;
+      case 'StorageUpdated':
+        room.handleStorageUpdate(data.data);
+        break;
+      case 'PresenceUpdated':
+        room.handlePresenceUpdate(data.data);
+        break;
+      // ...other cases
+      default:
+        // console.warn('Unknown message type:', data.type, data.data);
     }
   }
 

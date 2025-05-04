@@ -7,11 +7,13 @@ import { Room, Status } from './room';
 // Context type
 type RoomContextType<
     TPresence extends JsonObject,
+    TPresenceOperation,
     TStorage extends JsonObject,
+    TStorageOperation,
     TUserMeta = any,
     TRoomEvent = any
 > = {
-    room: Room<TPresence, TStorage, TUserMeta, TRoomEvent> | null;
+    room: Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent> | null;
 };
 
 // Create context
@@ -20,12 +22,13 @@ const RoomContext = createContext<RoomContextType<any, any, any, any> | null>(nu
 // Provider props
 type RoomProviderProps<
     TPresence extends JsonObject,
+    TPresenceOperation,
     TStorage extends JsonObject,
+    TStorageOperation,
     TUserMeta = any,
     TRoomEvent = any
 > = {
     children: React.ReactNode;
-    client: Client;
     id: string;
     initialPresence: TPresence;
     initialStorage?: TStorage;
@@ -35,14 +38,16 @@ type RoomProviderProps<
 // Mutation context type
 export type MutationContext<
     TPresence extends JsonObject,
+    TPresenceOperation,
     TStorage extends JsonObject,
+    TStorageOperation,
     TUserMeta = any
 > = {
     storage: TStorage;
     self: User<TPresence, TUserMeta>;
     others: readonly User<TPresence, TUserMeta>[];
     setMyPresence: (
-        patch: Partial<TPresence>,
+        operation: TPresenceOperation,
         options?: { addToHistory: boolean }
     ) => void;
 };
@@ -50,7 +55,9 @@ export type MutationContext<
 // Create a function to create a room context
 export function createRoomContext<
     TPresence extends JsonObject,
+    TPresenceOperation,
     TStorage extends JsonObject,
+    TStorageOperation,
     TUserMeta = any,
     TRoomEvent = any
 >(client: Client) {
@@ -61,13 +68,13 @@ export function createRoomContext<
         initialPresence,
         initialStorage,
         autoConnect = typeof window !== 'undefined',
-    }: RoomProviderProps<TPresence, TStorage, TUserMeta, TRoomEvent>) {
-        const [room, setRoom] = useState<Room<TPresence, TStorage, TUserMeta, TRoomEvent> | null>(null);
+    }: RoomProviderProps<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>) {
+        const [room, setRoom] = useState<Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent> | null>(null);
 
         useEffect(() => {
             if (!autoConnect) return;
 
-            const { room, leave } = client.enterRoom<TPresence, TStorage, TUserMeta, TRoomEvent>(id, {
+            const { room, leave } = client.enterRoom<TPresence,TPresenceOperation, TStorage, TStorageOperation,TUserMeta, TRoomEvent>(id, {
                 initialPresence,
                 initialStorage,
             });
@@ -115,7 +122,7 @@ export function createRoomContext<
 
     function useMyPresence(): [
         TPresence,
-        (patch: Partial<TPresence>, options?: { addToHistory: boolean }) => void
+        (operation: TPresenceOperation, options?: { addToHistory: boolean }) => void
     ] {
         const room = useRoom();
         const [presence, setPresence] = useState<TPresence>(room?.getPresence() || {} as TPresence);
@@ -131,21 +138,21 @@ export function createRoomContext<
         }, [room]);
 
         const updatePresence = (
-            patch: Partial<TPresence>,
+            operation: TPresenceOperation,
             options?: { addToHistory: boolean }
         ) => {
-            room?.updatePresence(patch, options);
+            room?.updatePresence(operation, options);
         };
 
         return [presence, updatePresence];
     }
 
     function useUpdateMyPresence(): (
-        patch: Partial<TPresence>,
+        operation: TPresenceOperation,
         options?: { addToHistory: boolean }
     ) => void {
         const room = useRoom();
-        return (patch, options) => room?.updatePresence(patch, options);
+        return (operation, options) => room?.updatePresence(operation, options);
     }
 
     function useOthers(): readonly User<TPresence, TUserMeta>[] {
@@ -214,8 +221,8 @@ export function createRoomContext<
     }
 
     function makeMutationContext(
-        room: Room<TPresence, TStorage, TUserMeta, TRoomEvent>
-    ): MutationContext<TPresence, TStorage, TUserMeta> {
+        room: Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>
+    ): MutationContext<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta> {
         const errmsg = "This mutation cannot be used until connected to the room";
 
         return {
@@ -248,7 +255,7 @@ export function createRoomContext<
     }
 
     function useMutation<F extends (
-        context: MutationContext<TPresence, TStorage, TUserMeta>,
+        context: MutationContext<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta>,
         ...args: any[]
     ) => any>(
         callback: F,
