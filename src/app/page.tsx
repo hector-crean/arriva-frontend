@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Docs } from "./docs";
 
 const Page = () => {
   return (
@@ -17,10 +16,11 @@ const Page = () => {
       <Button asChild size="lg">
         <Link href="/room">Go to Room Dashboard</Link>
       </Button>
+      
+      <Image src="/architecture.png" alt="Architecture" width={1000} height={1000} />
 
      
 
-      <Docs/>
     </div>
   );
 };
