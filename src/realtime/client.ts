@@ -102,8 +102,6 @@ export class Client {
     const room = this.getRoom(roomId);
     if (!room) return;
 
-    console.log(`WebSocket message received for room ${roomId}:`, data);
-
     switch (data.type) {
       case 'RoomCreated':
         // room.handleRoomCreated(data.data);
@@ -118,7 +116,7 @@ export class Client {
         // room.handleRoomLeft(data.data);
         break;
       case 'StorageUpdated':
-        console.log('StorageUpdated received:', data.data);
+        // console.log('StorageUpdated received:', data.data);
         
         // DEBUG: Invalidate ALL queries instead of just the storage query
         if (this.queryClient) {

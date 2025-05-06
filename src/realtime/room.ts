@@ -1,6 +1,7 @@
 // src/realtime/room.ts
 import { ServerMessageType } from '@/types/ServerMessageType';
 import { Client, JsonObject, User } from './client';
+import { TypedEventEmitter, EventData, CustomEventData } from './events';
 
 export type Status = 'initial' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 export type StorageStatus = 'loading' | 'synchronizing' | 'synchronized';
@@ -23,15 +24,7 @@ export class Room<
   private self: User<TPresence, TUserMeta> | null = null;
   private others: User<TPresence, TUserMeta>[] = [];
   private socket: WebSocket | null = null;
-  private events = {
-    presence: new Set<() => void>(),
-    storage: new Set<() => void>(),
-    others: new Set<() => void>(),
-    self: new Set<() => void>(),
-    status: new Set<() => void>(),
-    storageStatus: new Set<() => void>(),
-    event: new Map<string, Set<(data: any) => void>>(),
-  };
+  private events = new TypedEventEmitter<EventData, CustomEventData>();
 
   constructor(
     client: Client,
@@ -62,7 +55,7 @@ export class Room<
       presence: this.presence,
     };
     
-    this.notifyListeners('self');
+    this.notify('self', undefined);
     
     // Simulate connection success
     setTimeout(() => {
@@ -88,7 +81,7 @@ export class Room<
   // Status management
   public updateStatus(status: Status) {
     this.status = status;
-    this.notifyListeners('status');
+    this.notify('status', undefined);
   }
 
   public getStatus(): Status {
@@ -97,7 +90,7 @@ export class Room<
 
   public updateStorageStatus(status: StorageStatus) {
     this.storageStatus = status;
-    this.notifyListeners('storageStatus');
+    this.notify('storageStatus', undefined);
   }
 
   public getStorageStatus(): StorageStatus {
@@ -110,10 +103,10 @@ export class Room<
     
     if (this.self) {
       this.self.presence = this.presence;
-      this.notifyListeners('self');
+      this.notify('self', undefined);
     }
     
-    this.notifyListeners('presence');
+    this.notify('presence', undefined);
     
     // Send update to server if connected
     if (this.status === 'connected' && this.socket) {
@@ -141,7 +134,7 @@ export class Room<
       const storage = await this.client.fetchStorage<TStorage>(this.id);
       this.storage = storage;
       this.updateStorageStatus('synchronized');
-      this.notifyListeners('storage');
+      this.notify('storage', undefined);
     } catch (error) {
       console.error('Failed to load storage:', error);
       this.updateStorageStatus('synchronized'); // Fallback to synchronized
@@ -183,15 +176,16 @@ export class Room<
         info: data.info,
       });
     }
+
     
-    this.notifyListeners('others');
+    this.events.emit('others', undefined);
   }
 
 
   public handleRoomMsg(data: any) {
-    const eventListeners = this.events.event.get(data.event);
-    if (eventListeners) {
-      eventListeners.forEach(listener => listener(data.data));
+    // Use the TypedEventEmitter emitCustom method instead
+    if (data && data.event) {
+      this.events.emitCustom(data.event, data.data);
     }
   }
 
@@ -202,52 +196,20 @@ export class Room<
   }
 
   // Event subscription
-  public subscribe(type: 'storage', callback: () => void): () => void;
-  public subscribe(type: 'presence', callback: () => void): () => void;
-  public subscribe(type: 'others', callback: () => void): () => void;
-  public subscribe(type: 'self', callback: () => void): () => void;
-  public subscribe(type: 'status', callback: () => void): () => void;
-  public subscribe(type: 'storageStatus', callback: () => void): () => void;
-  public subscribe(type: 'event', event: string, callback: (data: any) => void): () => void;
-  public subscribe(type: string, eventOrCallback: string | (() => void), maybeCallback?: (data: any) => void): () => void {
-    if (type === 'event' && typeof eventOrCallback === 'string' && maybeCallback) {
-      const event = eventOrCallback;
-      const callback = maybeCallback;
-      
-      if (!this.events.event.has(event)) {
-        this.events.event.set(event, new Set());
-      }
-      
-      this.events.event.get(event)!.add(callback);
-      
-      return () => {
-        const listeners = this.events.event.get(event);
-        if (listeners) {
-          listeners.delete(callback);
-          if (listeners.size === 0) {
-            this.events.event.delete(event);
-          }
-        }
-      };
-    } else if (typeof eventOrCallback === 'function') {
-      const callback = eventOrCallback;
-      
-      if (type in this.events && type !== 'event') {
-        (this.events as any)[type].add(callback);
-        
-        return () => {
-          (this.events as any)[type].delete(callback);
-        };
-      }
-    }
-    
-    return () => {}; // Default no-op unsubscribe
+  public subscribe<K extends keyof EventData>(
+    event: K,
+    callback: (data: EventData[K]) => void
+  ): () => void {
+    return this.events.subscribe(event, callback);
   }
 
-  private notifyListeners(type: keyof typeof this.events) {
-    if (type === 'event') return; // Skip event type as it's handled differently
-    
-    const listeners = (this.events as any)[type];
-    listeners.forEach((listener: () => void) => listener());
+  // For custom events (like room events)
+  public subscribeCustom(event: string, callback: (data: any) => void): () => void {
+    return this.events.subscribeCustom(event, callback);
+  }
+
+  // Simplified notification method
+  private notify<K extends keyof EventData>(event: K, data: EventData[K]): void {
+    this.events.emit(event, data);
   }
 }

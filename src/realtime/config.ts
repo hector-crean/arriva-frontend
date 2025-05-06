@@ -53,7 +53,6 @@ export const {
   useStorage,
   useMutation,
   useBroadcastMsg,
-  useEventListener,
 } = createRoomContext<Presence, PresenceOperation, Storage, StorageOperation, UserMeta, ClientMessage, ServerMessage>(client);
 
 

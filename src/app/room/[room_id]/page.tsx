@@ -9,7 +9,6 @@ import {
   Presence,
   RoomProvider,
   Storage,
-  useEventListener,
   useMutation,
   useMyPresence,
   useOthers,
@@ -19,30 +18,9 @@ import {
 import { useEffect } from "react";
 import { User } from "@/realtime/client";
 
-function Cursor({ user }: { user: User<Presence> }) {
-  const { x, y } = user.presence.cursor.position || { x: 0, y: 0 };
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: x,
-        top: y,
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        backgroundColor: "red",
-        transform: "translate(-50%, -50%)",
-        pointerEvents: "none",
-        zIndex: 1000,
-      }}
-    />
-  );
-}
 
 const Presentation = ({ roomId }: { roomId: string }) => {
-  const [myPresence, updateMyPresence] = useMyPresence();
-  const others = useOthers();
+
 
 //   const room = useRoom();
 //   const queryClient = useQueryClient();
@@ -52,36 +30,9 @@ const Presentation = ({ roomId }: { roomId: string }) => {
     (prev, curr) => prev?.data.version === curr?.data.current_slide_index
   );
 
-  console.log(storage);
 
 
 
-
-
-  // Track mouse movement to update cursor position
-//   useEffect(() => {
-//     const handleMouseMove = (e: MouseEvent) => {
-//       updateMyPresence({
-//         Move: { x: e.clientX, y: e.clientY },
-//       });
-//     };
-
-//     const handleMouseLeave = () => {
-//       updateMyPresence("Hide");
-//     };
-
-//     window.addEventListener("mousemove", handleMouseMove);
-//     window.addEventListener("mouseleave", handleMouseLeave);
-
-//     return () => {
-//       window.removeEventListener("mousemove", handleMouseMove);
-//       window.removeEventListener("mouseleave", handleMouseLeave);
-//     };
-//   }, [updateMyPresence]);
-
-  // if (isLoading) {
-  //     return <div className="flex justify-center items-center h-screen">Loading presentation...</div>;
-  // }
 
   if (!storage) {
     return (
@@ -91,16 +42,10 @@ const Presentation = ({ roomId }: { roomId: string }) => {
     );
   }
 
-  console.log(storage);
 
   return (
     <div className="container mx-auto py-8 relative">
-      {others.map(
-        (user) =>
-          user.presence.cursor.position && (
-            <Cursor key={user.connectionId} user={user} />
-          )
-      )}
+      
       <Tabs defaultValue="view">
         <TabsList className="mb-8 w-full max-w-md mx-auto">
           <TabsTrigger value="view" className="flex-1">

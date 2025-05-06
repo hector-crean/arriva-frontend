@@ -293,23 +293,7 @@ export function createRoomContext<
         return (msg: TClientMessage) => room?.broadcastMsg(msg);
     }
 
-    function useEventListener(
-        event: string,
-        callback: (data: TServerMessage) => void,
-        deps: readonly unknown[] = []
-    ) {
-        const room = useRoom();
-
-        // Memoize callback to avoid unnecessary re-subscriptions
-        const memoizedCallback = React.useCallback(callback, deps);
-
-        useEffect(() => {
-            if (!room) return;
-
-            const unsubscribe = room.subscribe('event', event, memoizedCallback);
-            return unsubscribe;
-        }, [room, event, memoizedCallback]);
-    }
+  
 
     // Return all hooks and components
     return {
@@ -323,6 +307,5 @@ export function createRoomContext<
         useStorage,
         useMutation,
         useBroadcastMsg,
-        useEventListener,
     };
 }
