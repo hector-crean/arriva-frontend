@@ -1,6 +1,5 @@
 "use client";
 import { Button } from '@/components/ui/button';
-import { useRoomEvent } from '@/hooks/use-room-event';
 import { PresentationOperation } from '@/types/PresentationOperation';
 import { SharedPresentation } from '@/types/SharedPresentation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,50 +10,35 @@ import { InteractiveSlide } from './interactive-slide';
 import { PollSlide } from './poll-slide';
 import { RegularSlide } from './regular-slide';
 import { VideoSlide } from './video-slide';
+import { useBroadcastMsg, useEventListener, useMutation, useStorage } from '@/realtime/config';
+import { ServerMessageType } from '@/types/ServerMessageType';
 
 interface PresentationViewerProps {
     roomId: string;
-    initialPresentation: SharedPresentation;
+    presentation: SharedPresentation;
 }
 
 export const PresentationViewer: React.FC<PresentationViewerProps> = ({
     roomId,
-    initialPresentation
+    presentation
 }) => {
-    const { room_id } = useParams<{ room_id: string }>();
-    const { sendMessage, message } = useRoomEvent({ roomId });
-
-    const queryClient = useQueryClient();
+    // Get the live presentation state from storage
 
 
-    const [draftPresentation, setDraftPresentation] = useState<SharedPresentation>(initialPresentation);
+    // Use the broadcast event hook for sending operations
+    const broadcastMsg = useBroadcastMsg();
 
 
-    useEffect(() => {
-        if (initialPresentation) {
-            setDraftPresentation(initialPresentation);
-        }
-    }, [initialPresentation])
-
-    // Merge server state with realtime updates
-
-
-
-
-    const currentSlide = draftPresentation.slides[draftPresentation.current_slide_index];
-
-    useEffect(() => {
-        if (message) {
-            if (message.type === 'StorageUpdated') {
-                queryClient.invalidateQueries({ queryKey: ['room', roomId, 'storage'] });
-            }
-        }
-    }, [message])
-
+    if (!presentation) {
+        return <div>Loading...</div>;
+    }
+    
+    console.log('presentation', presentation);
+    const currentSlide = presentation.slides?.[presentation.current_slide_index];
 
     const applyOperation = (operation: PresentationOperation) => {
-        sendMessage({
-            type: 'UpdatedStorage',
+        broadcastMsg({
+            type: 'UpdateStorage',
             data: {
                 operations: [operation]
             }
@@ -71,7 +55,7 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
         applyOperation({
             type: 'RevealAnnotation',
             data: {
-                slide_index: draftPresentation.current_slide_index,
+                slide_index: presentation.current_slide_index,
                 annotation_id: annotationId
             }
         });
@@ -82,7 +66,7 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
         applyOperation({
             type: 'HideAnnotation',
             data: {
-                slide_index: draftPresentation.current_slide_index,
+                slide_index: presentation.current_slide_index,
                 annotation_id: annotationId
             }
         });
@@ -93,7 +77,7 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
     const playVideo = () => {
         applyOperation({
             type: 'PlayVideo',
-            data: { slide_index: draftPresentation.current_slide_index }
+            data: { slide_index: presentation.current_slide_index }
         });
 
     };
@@ -101,7 +85,7 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
     const pauseVideo = () => {
         applyOperation({
             type: 'PauseVideo',
-            data: { slide_index: draftPresentation.current_slide_index }
+            data: { slide_index: presentation.current_slide_index }
         });
 
     };
@@ -110,7 +94,7 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
         applyOperation({
             type: 'SeekVideo',
             data: {
-                slide_index: draftPresentation.current_slide_index,
+                slide_index: presentation.current_slide_index,
                 time
             }
         });
@@ -122,13 +106,12 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
         applyOperation({
             type: 'VoteOnPoll',
             data: {
-                slide_index: draftPresentation.current_slide_index,
+                slide_index: presentation.current_slide_index,
                 option_index: optionIndex
             }
         });
 
     };
-
 
     // Render the current slide based on its type
     const renderCurrentSlide = () => {
@@ -176,24 +159,24 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
 
     // Render slide navigation
     const renderNavigation = () => {
-        if (!draftPresentation || draftPresentation.slides.length === 0) return null;
+        if (!presentation || !presentation.slides || presentation.slides.length === 0) return null;
 
         return (
             <div className="flex justify-between items-center p-4 bg-gray-100 rounded-md">
                 <Button
                     onClick={goToPreviousSlide}
-                    disabled={draftPresentation.current_slide_index === 0}
+                    disabled={presentation.current_slide_index === 0}
                 >
                     Previous
                 </Button>
 
                 <div className="flex-1 text-center">
-                    Slide {draftPresentation.current_slide_index + 1} of {draftPresentation.slides.length}
+                    Slide {presentation.current_slide_index + 1} of {presentation.slides.length}
                 </div>
 
                 <Button
                     onClick={goToNextSlide}
-                    disabled={draftPresentation.current_slide_index >= draftPresentation.slides.length - 1}
+                    disabled={presentation.current_slide_index >= presentation.slides.length - 1}
                 >
                     Next
                 </Button>
@@ -203,16 +186,16 @@ export const PresentationViewer: React.FC<PresentationViewerProps> = ({
 
     // Render slide thumbnails for quick navigation
     const renderThumbnails = () => {
-        if (!draftPresentation || draftPresentation.slides.length === 0) return null;
+        if (!presentation || !presentation.slides || presentation.slides.length === 0) return null;
 
         return (
             <div className="flex overflow-x-auto gap-2 p-2 bg-gray-50 rounded-md">
-                {draftPresentation.slides.map((slide, index) => (
+                {presentation.slides.map((slide, index) => (
                     <div
                         key={slide.id}
                         className={`
               flex-shrink-0 w-24 h-16 border-2 cursor-pointer
-              ${index === draftPresentation.current_slide_index ? 'border-blue-500' : 'border-gray-300'}
+              ${index === presentation.current_slide_index ? 'border-blue-500' : 'border-gray-300'}
             `}
                         onClick={() => goToSlide(index)}
                     >

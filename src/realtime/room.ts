@@ -11,7 +11,8 @@ export class Room<
   TStorage extends JsonObject,
   TStorageOperation,
   TUserMeta = any,
-  TRoomEvent = any
+  TClientMessage = any,
+  TServerMessage = any
 > {
   private client: Client;
   public id: string;
@@ -119,12 +120,12 @@ export class Room<
 
       
       this.socket.send(JSON.stringify({
-        type: 'UpdatedPresence',
+        type: 'UpdatePresence',
         data: {
           presence: operation,
         },
-        // addToHistory: options?.addToHistory || false,
       }));
+      
     }
   }
 
@@ -166,7 +167,7 @@ export class Room<
   }
 
   // Event handling
-  public handlePresenceUpdate(data: any) {
+  public handlePresenceUpdate(data: TPresence) {
     // Update others' presence
     const otherIndex = this.others.findIndex(user => user.connectionId === data.connectionId);
     
@@ -186,30 +187,17 @@ export class Room<
     this.notifyListeners('others');
   }
 
-  public handleStorageUpdate(data: any) {
-    if (!this.storage) {
-      this.storage = data.storage;
-    } else {
-      this.storage = { ...this.storage, ...data.patch };
-    }
-    
-    this.notifyListeners('storage');
-  }
 
-  public handleRoomEvent(data: any) {
+  public handleRoomMsg(data: any) {
     const eventListeners = this.events.event.get(data.event);
     if (eventListeners) {
       eventListeners.forEach(listener => listener(data.data));
     }
   }
 
-  public broadcastEvent(event: string, data: TRoomEvent) {
+  public broadcastMsg(msg: TClientMessage) {
     if (this.status === 'connected' && this.socket) {
-      this.socket.send(JSON.stringify({
-        type: 'event',
-        event,
-        data,
-      }));
+      this.socket.send(JSON.stringify(msg));
     }
   }
 

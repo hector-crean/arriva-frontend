@@ -1,7 +1,7 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./realtime/config";
 
-const queryClient = new QueryClient();
 
 
 const Providers = ({ children }: { children: React.ReactNode }) => {

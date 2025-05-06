@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useRoomEvent } from '@/hooks/use-room-event';
+import { useBroadcastMsg, useStorage } from '@/realtime/config';
 import { PresentationOperation } from '@/types/PresentationOperation';
 import { SharedPresentation } from '@/types/SharedPresentation';
 import { Slide } from '@/types/Slide';
@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
 import { v4 as uuidv4 } from 'uuid';
+import { ClientMessageType } from '@/types/ClientMessageType';
 
 interface PresentationEditorProps {
     roomId: string;
@@ -20,23 +21,27 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
     roomId,
     presentation
 }) => {
+    const broadcastMsg = useBroadcastMsg();
+
+
     const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
     const [slideTitle, setSlideTitle] = useState('');
     const [slideContent, setSlideContent] = useState('');
     const [slideType, setSlideType] = useState<'Regular' | 'Video' | 'Interactive' | 'Poll'>('Regular');
 
-    const { sendMessage } = useRoomEvent({ roomId });
-
     const applyOperation = (operation: PresentationOperation) => {
-        sendMessage({
-            type: 'UpdatedStorage',
+        const message: ClientMessageType = {
+            type: 'UpdateStorage',
             data: {
                 operations: [operation]
             }
-        });
+        };
+        broadcastMsg(message);
     };
 
     const startEditingSlide = (index: number) => {
+        if (!presentation?.slides?.[index]) return;
+
         const slide = presentation.slides[index];
         setEditingSlideIndex(index);
         setSlideTitle(slide.title);
@@ -69,9 +74,10 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
     };
 
     const saveSlide = () => {
+        if (!presentation) return;
+
         let newSlide: Slide;
 
-        // Create the appropriate slide type
         const slideData = match(slideType)
             .with('Regular', () => ({
                 type: 'Regular' as const,
@@ -96,7 +102,6 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
                 }
             }))
             .with('Poll', () => {
-                // For polls, parse the content as question and options
                 const lines = slideContent.split('\n').filter(line => line.trim());
                 const question = lines[0] || 'Question?';
                 const options = lines.slice(1).length > 0 ? lines.slice(1) : ['Option 1', 'Option 2'];
@@ -113,13 +118,14 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
             .exhaustive();
 
         newSlide = {
-            id: editingSlideIndex !== null ? presentation.slides[editingSlideIndex].id : uuidv4(),
+            id: editingSlideIndex !== null && presentation.slides?.[editingSlideIndex]
+                ? presentation.slides[editingSlideIndex].id
+                : uuidv4(),
             title: slideTitle,
             slide_type: slideData,
         };
 
         if (editingSlideIndex !== null) {
-            // Update existing slide
             applyOperation({
                 type: 'UpdateSlide',
                 data: {
@@ -129,18 +135,16 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
             });
             toast.success('Slide updated');
         } else {
-            // Add new slide
             applyOperation({
                 type: 'AddSlide',
                 data: {
-                    index: presentation.slides.length,
+                    index: presentation?.slides?.length ?? 0,
                     slide: newSlide
                 }
             });
             toast.success('Slide added');
         }
 
-        // Reset form
         setEditingSlideIndex(null);
         setSlideTitle('');
         setSlideContent('');
@@ -157,8 +161,10 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
     };
 
     const renderSlideForm = () => {
-        if (editingSlideIndex === null && !slideTitle) {
-            return null;
+        if (editingSlideIndex === null && !slideTitle && slideContent === '') {
+            if (slideTitle !== 'New Slide') {
+                return null;
+            }
         }
 
         return (
@@ -233,6 +239,10 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
         );
     };
 
+    if (!presentation) {
+        return <div>Loading editor...</div>;
+    }
+
     return (
         <div className="max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -243,7 +253,7 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
             {renderSlideForm()}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {presentation.slides.map((slide, index) => (
+                {presentation.slides?.map((slide, index) => (
                     <div key={slide.id} className="border rounded-lg p-4 hover:shadow-md">
                         <div className="flex justify-between items-start mb-2">
                             <h3 className="font-medium">{slide.title}</h3>
@@ -275,16 +285,16 @@ export const PresentationEditor: React.FC<PresentationEditorProps> = ({
                         <div className="text-sm truncate">
                             {match(slide.slide_type)
                                 .with({ type: 'Regular' }, (slideType) =>
-                                    slideType.data.content.substring(0, 100) + '...'
+                                    (slideType.data.content || '').substring(0, 100) + (slideType.data.content?.length > 100 ? '...' : '')
                                 )
                                 .with({ type: 'Video' }, (slideType) =>
                                     slideType.data.url
                                 )
                                 .with({ type: 'Interactive' }, (slideType) =>
-                                    `${slideType.data.content.substring(0, 50)}... (${slideType.data.interactive_elements.length} elements)`
+                                    `${(slideType.data.content || '').substring(0, 50)}${slideType.data.content?.length > 50 ? '...' : ''} (${slideType.data.interactive_elements?.length ?? 0} elements)`
                                 )
                                 .with({ type: 'Poll' }, (slideType) =>
-                                    `${slideType.data.question} (${slideType.data.options.length} options)`
+                                    `${slideType.data.question} (${slideType.data.options?.length ?? 0} options)`
                                 )
                                 .exhaustive()}
                         </div>

@@ -1,8 +1,9 @@
+'use client'
 // src/realtime/context.tsx
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { Client, JsonObject, User } from './client';
-import { Room, Status } from './room';
+import { Room, Status, StorageStatus } from './room';
 
 // Context type
 type RoomContextType<
@@ -26,7 +27,8 @@ type RoomProviderProps<
     TStorage extends JsonObject,
     TStorageOperation,
     TUserMeta = any,
-    TRoomEvent = any
+    TClientMessage = any,
+    TServerMessage = any
 > = {
     children: React.ReactNode;
     id: string;
@@ -59,7 +61,8 @@ export function createRoomContext<
     TStorage extends JsonObject,
     TStorageOperation,
     TUserMeta = any,
-    TRoomEvent = any
+    TClientMessage = any,
+    TServerMessage = any
 >(client: Client) {
     // Create the provider component
     function RoomProvider({
@@ -68,13 +71,13 @@ export function createRoomContext<
         initialPresence,
         initialStorage,
         autoConnect = typeof window !== 'undefined',
-    }: RoomProviderProps<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>) {
-        const [room, setRoom] = useState<Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent> | null>(null);
+    }: RoomProviderProps<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TClientMessage, TServerMessage>) {
+        const [room, setRoom] = useState<Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TClientMessage, TServerMessage> | null>(null);
 
         useEffect(() => {
             if (!autoConnect) return;
 
-            const { room, leave } = client.enterRoom<TPresence,TPresenceOperation, TStorage, TStorageOperation,TUserMeta, TRoomEvent>(id, {
+            const { room, leave } = client.enterRoom<TPresence,TPresenceOperation, TStorage, TStorageOperation,TUserMeta, TClientMessage, TServerMessage>(id, {
                 initialPresence,
                 initialStorage,
             });
@@ -196,32 +199,37 @@ export function createRoomContext<
         isEqual: (prev: T | null, curr: T | null) => boolean = (a, b) => a === b
     ): T | null {
         const room = useRoom();
-        const queryClient = useQueryClient();
+        
+        // Ensure client has access to QueryClient (first time only)
+     
 
-        // Use Tanstack Query for storage
+        // Use TanStack Query for storage, but no need for subscription anymore
         const { data: storage } = useQuery({
             queryKey: ['storage', room?.id],
-            queryFn: async () => room?.getStorageSnapshot() || null,
-            enabled: !!room,
+            queryFn: async (): Promise<TStorage | null> => {
+                if (!room?.id) return null;
+                try {
+                    console.log(`QueryFn: Fetching storage for room ${room.id}`);
+                    return await client.fetchStorage<TStorage>(room.id);
+                } catch (error) {
+                    console.error(`QueryFn: Failed to fetch storage for room ${room.id}:`, error);
+                    return null;
+                }
+            },
+            // enabled: !!room,
+            // Optional: Add staleTime/cacheTime if needed
         });
 
+        // Apply selector
         const result = storage ? selector(storage) : null;
-
-        useEffect(() => {
-            if (!room) return;
-
-            const unsubscribe = room.subscribe('storage', () => {
-                queryClient.invalidateQueries({ queryKey: ['storage', room.id] });
-            });
-
-            return unsubscribe;
-        }, [room, queryClient]);
-
+        
+        // No more subscription needed - the client directly invalidates the query
+        
         return result;
     }
 
     function makeMutationContext(
-        room: Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TRoomEvent>
+        room: Room<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta, TClientMessage, TServerMessage>
     ): MutationContext<TPresence, TPresenceOperation, TStorage, TStorageOperation, TUserMeta> {
         const errmsg = "This mutation cannot be used until connected to the room";
 
@@ -280,14 +288,14 @@ export function createRoomContext<
         return memoizedCallback as unknown as Omit<F, 'context'>;
     }
 
-    function useBroadcastEvent() {
+    function useBroadcastMsg() {
         const room = useRoom();
-        return (event: string, data: TRoomEvent) => room?.broadcastEvent(event, data);
+        return (msg: TClientMessage) => room?.broadcastMsg(msg);
     }
 
     function useEventListener(
         event: string,
-        callback: (data: TRoomEvent) => void,
+        callback: (data: TServerMessage) => void,
         deps: readonly unknown[] = []
     ) {
         const room = useRoom();
@@ -314,7 +322,7 @@ export function createRoomContext<
         useSelf,
         useStorage,
         useMutation,
-        useBroadcastEvent,
+        useBroadcastMsg,
         useEventListener,
     };
 }
