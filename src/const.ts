@@ -1,1 +1,1 @@
-export const BASE_URL = "http://ws-rooms.fly.dev/api";
+export const BASE_URL = "https://ws-rooms.fly.dev/api";

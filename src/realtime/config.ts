@@ -15,9 +15,9 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient();
 
 const client = new Client({
-  apiEndpoint: 'http://ws-rooms.fly.dev/api',
+  apiEndpoint: 'https://ws-rooms.fly.dev/api',
   // wsEndpoint: 'ws://localhost:9999/ws/room',
-  wsEndpoint: 'ws://ws-rooms.fly.dev/ws/room',
+  wsEndpoint: 'wss://ws-rooms.fly.dev/ws/room',
   // Add QueryClient to the options
   queryClient: queryClient,
   // authToken: 'your-auth-token', // Optional
